@@ -78,7 +78,7 @@ app.post("/buy", async (req, res) => {
 });
 
 // --- Lancement du serveur HTTP ---
-const PORT = 8081;
+const PORT = 8080;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Serveur Frontend en ligne sur http://localhost:${PORT}`);
 });
