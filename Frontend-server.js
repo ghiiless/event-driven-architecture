@@ -1,5 +1,5 @@
 // ================================
-// 🌐 FRONTEND SERVER + KAFKA PRODUCER
+// 🌐 47FRONTEND SERVER + KAFKA PRODUCER
 // ================================
 
 import express from "express";
@@ -18,22 +18,21 @@ app.use(express.static("public"));
 // --- Configuration Kafka ---
 const kafka = new Kafka({
   clientId: "frontend",
-  brokers: ["localhost:9092"], // ⚠️ adapte selon ton docker-compose (par ex. "kafka:9092")
+  brokers: ["localhost:9092"], // ⚠️ changer en "kafka:9092" quand Docker sera utilisé
 });
 
 const producer = kafka.producer();
 
-// --- Connexion Kafka au démarrage ---
+// --- Connexion Kafka ---
 await producer.connect();
 console.log("✅ Kafka connecté");
 
 // --- Endpoint principal : POST /buy ---
 app.post("/buy", async (req, res) => {
   try {
-    // 1️⃣ Récupère les infos du panier envoyées depuis app.js
     const { items, total } = req.body;
 
-    // 2️⃣ Crée l'événement à publier
+    // 1️⃣ Construction de l'événement principal
     const event = {
       event: "commande.initialisee",
       data: {
@@ -45,22 +44,42 @@ app.post("/buy", async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    // 3️⃣ Publie dans le topic Kafka
+    // 2️⃣ Envoi dans le topic principal
     await producer.send({
       topic: "commande.initialisee",
       messages: [{ value: JSON.stringify(event) }],
     });
 
-    console.log("📤 Événement Kafka envoyé :", event);
-    res.json({ success: true, event });
+    console.log("📤 Event envoyé dans commande.initialisee :", event);
+
+    // 3️⃣ Envoi dans logs.central (obligatoire pour le projet)
+    await producer.send({
+      topic: "logs.central",
+      messages: [
+        {
+          value: JSON.stringify({
+            source: "frontend",
+            event: "commande.initialisee",
+            payload: event,
+            timestamp: new Date().toISOString(),
+          }),
+        },
+      ],
+    });
+
+    console.log("📝 Log envoyé dans logs.central");
+
+    return res.json({ success: true, event });
+
   } catch (err) {
     console.error("❌ Erreur Kafka :", err);
-    res.status(500).json({ error: "Erreur lors de l'envoi Kafka" });
+    return res.status(500).json({ error: "Erreur lors de l'envoi Kafka" });
   }
 });
 
 // --- Lancement du serveur HTTP ---
 const PORT = 8081;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Serveur Frontend en ligne sur http://localhost:${PORT}`);
 });
+
